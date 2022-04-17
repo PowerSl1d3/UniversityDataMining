@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from enum import Enum
 import random
+import xlwt
 
 random.seed(42)
 
@@ -157,8 +158,9 @@ class Disease:
         self.number_of_observation_moments = []
         self.writer = None
 
-    def _open_writer(self, filename):
-        self.writer = open(filename, mode="w")
+    def open_writer(self, filename: str):
+        if self.writer is None:
+            self.writer = pd.ExcelWriter(filename, engine="openpyxl")
 
     def make_report_about_disease(self, filename: str):
         df_features = pd.DataFrame(data=[f"Признак{index}" for index in range(len(self.features))],
@@ -221,22 +223,16 @@ class Disease:
             aggfunc='first'
         )
 
-        if self.writer is None:
-            self._open_writer(filename)
-        df_features.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_possible_values.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_normal_values.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_clinical_picture.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_number_of_periods_of_dynamic.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_values_for_periods_of_dynamics.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_upper_and_down_time_bound.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
+        self.open_writer(filename)
+
+        df_features.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=3)
+        df_possible_values.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=6)
+        df_normal_values.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=9)
+        df_clinical_picture.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=12)
+        df_number_of_periods_of_dynamic.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=16)
+        df_values_for_periods_of_dynamics.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0,
+                                                   startcol=20)
+        df_upper_and_down_time_bound.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=26)
 
     def make_report_about_medicine_history(self, filename: str):
         df_medicine_history_without_concrete_values = []
@@ -276,11 +272,10 @@ class Disease:
             aggfunc="first"
         )
 
-        if self.writer is None:
-            self._open_writer(filename)
-        df_medicine_history_without_concrete_values.to_csv(self.writer, encoding="utf-8")
-        self.writer.write("\n")
-        df_medicine_history_with_concrete_values.to_csv(self.writer, encoding="utf-8")
+        self.open_writer(filename)
+
+        df_medicine_history_without_concrete_values.to_excel(self.writer, sheet_name="Sheet2", encoding="utf-8", startrow=0, startcol=0)
+        df_medicine_history_with_concrete_values.to_excel(self.writer, sheet_name="Sheet2", encoding="utf-8", startrow=0, startcol=7)
 
     def __str__(self):
         description = str(self.features)
@@ -289,6 +284,9 @@ class Disease:
 
     def __repr__(self):
         return self.__str__()
+
+    def __del__(self):
+        self.writer.save()
 
 
 def make_disease() -> Disease:
@@ -376,8 +374,8 @@ def main():
 
     print(disease, sep="\n")
 
-    disease.make_report_about_disease("tmp.csv")
-    disease.make_report_about_medicine_history("tmp.csv")
+    disease.make_report_about_disease("tmp.xls")
+    disease.make_report_about_medicine_history("tmp.xls")
 
 
 if __name__ == "__main__":

@@ -2,11 +2,14 @@ import numpy as np
 import pandas as pd
 from enum import Enum
 import random
-import xlwt
+from copy import deepcopy
+from itertools import combinations
 
 random.seed(42)
 
 enum_feature_possible_values = [chr(x + ord('a')) for x in range(26)]
+
+global_alt = 0
 
 
 def prefix_sum(array: [int]) -> [int]:
@@ -40,6 +43,8 @@ class Feature:
         self.number_of_observation_moments = []
         self.concrete_moment_of_observation = []
         self.concrete_values_for_periods_of_dynamic_of_observation_moment = []
+        # задание 3
+        self.possible_alternatives = None
 
     def get_possible_values_representation(self) -> str:
         if self.type is FeatureType.BOOL:
@@ -114,7 +119,6 @@ class Feature:
                 self.number_of_observation_moments[period_index]
             )))
 
-        skip_one = False
         for index, moment_of_observation in enumerate(self.concrete_moment_of_observation):
             skip_one = index != 0
             if skip_one:
@@ -126,6 +130,54 @@ class Feature:
                 self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(
                     random.choice(self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(self.bound[0], self.bound[1])
                 )
+
+    def generate_alternatives_for_concrete_medicine_history(self):
+        flat_moments_of_observation = sum(self.concrete_moment_of_observation, [])
+        alternatives = [[flat_moments_of_observation[-1] + 1]]
+        for number_of_alternatives in range(2, 6):
+            current_alternatives = list(
+                filter(lambda x: x[-1] == flat_moments_of_observation[-1],
+                       combinations(flat_moments_of_observation,
+                                    number_of_alternatives)
+                       )
+            )
+            alternatives_index_in_moments_of_observation = []
+            for alternative in current_alternatives:
+                alternatives_index_in_moments_of_observation.append(
+                    list(
+                        map(
+                            lambda x: flat_moments_of_observation.index(x),
+                            alternative
+                        )
+                    )
+                )
+            for alternative in alternatives_index_in_moments_of_observation:
+                list_of_unique_alternatives = []
+                is_first_alternative = True
+                for range_start, range_end in zip(alternative[:-1], alternative[1:]):
+                    if is_first_alternative:
+                        list_of_unique_alternatives.append(
+                            set(
+                                self.concrete_values_for_periods_of_dynamic_of_observation_moment[:range_start + 1]
+                            )
+                        )
+                        is_first_alternative = False
+                    list_of_unique_alternatives.append(
+                        set(
+                            self.concrete_values_for_periods_of_dynamic_of_observation_moment[range_start + 1:range_end + 1]
+                        )
+                    )
+                is_break = False
+                for index in range(len(list_of_unique_alternatives) - 1):
+                    if len(
+                            list_of_unique_alternatives[index].intersection(list_of_unique_alternatives[index + 1])
+                    ) > 0:
+                        is_break = True
+                if not is_break:
+                    alternatives.append(
+                        [flat_moments_of_observation[alternative_index] for alternative_index in alternative]
+                    )
+            self.possible_alternatives = alternatives
 
     def __str__(self):
         description = str()
@@ -145,6 +197,17 @@ class Feature:
         description += "\n"
         description += f"Concrete values at moments of observation: {self.concrete_values_for_periods_of_dynamic_of_observation_moment}"
         description += "\n"
+        for alternative in self.possible_alternatives:
+            global global_alt
+            global_alt += 1
+            description += "Possible alternative with " + str(len(alternative)) + " are:\n"
+            if len(alternative) == 1:
+                description += f"[1, {alternative[0]})\n"
+            else:
+                for index in range(len(alternative) - 1):
+                    if index == 0:
+                        description += f"[1, {alternative[index] + 1})\n"
+                    description += f"[{alternative[index] + 1}, {alternative[index + 1] + 1})\n"
         return description
 
     def __repr__(self):
@@ -155,7 +218,6 @@ class Disease:
     def __init__(self, features_type: [FeatureType]):
         self.features = [Feature(x, index, None) for index, x in enumerate(features_type)]
         self.duration_of_period_dynamic = []
-        self.number_of_observation_moments = []
         self.writer = None
 
     def open_writer(self, filename: str):
@@ -286,10 +348,11 @@ class Disease:
         return self.__str__()
 
     def __del__(self):
-        self.writer.save()
+        if self.writer:
+            self.writer.save()
 
 
-def make_disease() -> Disease:
+def _make_disease() -> Disease:
     return Disease([
         FeatureType.BOOL,
         FeatureType.INTEGRAL,
@@ -358,25 +421,60 @@ def generate_concrete_medicine_history(disease: Disease) -> Disease:
     return disease
 
 
-def main():
-    assert (pd is not None)
-    assert (np is not None)
-
-    disease = make_disease()
+def make_disease() -> Disease:
+    disease = _make_disease()
     generate_limits_for_features(disease)
     generate_normal_values_for_features(disease)
     generate_number_of_periods_of_dynamic(disease)
     generate_values_for_periods_of_dynamic(disease)
     generate_upper_and_down_time_bound(disease)
+    return disease
+
+
+def make_medicine_history(disease: Disease):
     generate_duration_of_period_dynamic(disease)
     generate_number_of_observation_moments(disease)
     generate_concrete_medicine_history(disease)
+    return disease
 
-    print(disease, sep="\n")
 
-    disease.make_report_about_disease("tmp.xls")
-    disease.make_report_about_medicine_history("tmp.xls")
+def generate_alternatives(disease: Disease) -> Disease:
+    for feature in disease.features:
+        feature.generate_alternatives_for_concrete_medicine_history()
+    return disease
+
+
+def main():
+    assert (pd is not None)
+    assert (np is not None)
+
+    first_disease = make_disease()
+    second_disease = deepcopy(first_disease)
+    make_medicine_history(first_disease)
+    make_medicine_history(second_disease)
+
+    generate_alternatives(first_disease)
+
+    print(first_disease)
+
+    generate_alternatives(second_disease)
+
+    print(second_disease)
+
+    #disease.make_report_about_disease("tmp.xls")
+    #disease.make_report_about_medicine_history("tmp.xls")
 
 
 if __name__ == "__main__":
     main()
+    print("ALTERNATIVES TOTAL:", global_alt)
+
+# FeatureType.BOOL with possible values: [True, False] and normal values: True and number of periods of dynamic: 5
+# Values for periods of dynamics: [True, False, True, False, True]
+# Values for upper and down time bound of dynamics: [(7, 13), (9, 14), (5, 17), (8, 17), (5, 20)]
+# Time duration for concrete period dynamic: [11, 14, 7, 16, 12]
+# Number of observable moment for concrete period dynamic: [3, 2, 1, 3, 2]
+# Concrete moments of observation moment: [[3, 4, 6], [19, 20], [26], [34, 46, 48], [51, 59]]
+# Concrete values at moments of observation: [True, False, True, False, False, True, False, False, True, False, False]
+# Possible alternative with 1 are:
+# [1, 60)

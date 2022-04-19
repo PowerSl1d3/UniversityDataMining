@@ -105,7 +105,7 @@ class Feature:
     def generate_number_of_observation_moments(self):
         current_number_of_observable_moments = []
         for i in range(self.number_of_periods_of_dynamic):
-            #Тут задаётся количество значений для периода
+            # Тут задаётся количество значений для периода
             current_number_of_observable_moments.append(random.randint(3, 5))
             if current_number_of_observable_moments[-1] > self.duration_of_period_dynamic[i]:
                 current_number_of_observable_moments[-1] = self.duration_of_period_dynamic[i]
@@ -129,11 +129,14 @@ class Feature:
             if skip_one:
                 appended_value = self.concrete_values_for_periods_of_dynamic_of_observation_moment[-1]
                 while appended_value == self.concrete_values_for_periods_of_dynamic_of_observation_moment[-1]:
-                    appended_value = random.choice(self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(self.bound[0], self.bound[1])
+                    appended_value = random.choice(
+                        self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(self.bound[0],
+                                                                                                 self.bound[1])
                 self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(appended_value)
-            for time_moment in moment_of_observation[0 + int(skip_one):]:
+            for _ in moment_of_observation[0 + int(skip_one):]:
                 self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(
-                    random.choice(self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(self.bound[0], self.bound[1])
+                    random.choice(self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(
+                        self.bound[0], self.bound[1])
                 )
 
     def generate_alternatives_for_concrete_medicine_history(self):
@@ -169,7 +172,8 @@ class Feature:
                         is_first_alternative = False
                     list_of_unique_alternatives.append(
                         set(
-                            self.concrete_values_for_periods_of_dynamic_of_observation_moment[range_start + 1:range_end + 1]
+                            self.concrete_values_for_periods_of_dynamic_of_observation_moment[
+                            range_start + 1:range_end + 1]
                         )
                     )
                 is_break = False
@@ -225,129 +229,9 @@ class Disease:
         self.title = title
         self.medicine_history_title = None
         self.features = [Feature(x, index, None) for index, x in enumerate(features_type)]
-        self.writer = None
 
     def set_medicine_history_title(self, title: str):
         self.medicine_history_title = title
-
-    def open_writer(self, filename: str):
-        if self.writer is None:
-            self.writer = pd.ExcelWriter(filename, engine="openpyxl")
-
-    def make_report_about_disease(self, filename: str):
-        df_features = pd.DataFrame(data=[f"Признак{index}" for index in range(len(self.features))],
-                                   columns=["Признаки"])
-        df_possible_values = pd.DataFrame(
-            data=[feature.get_possible_values_representation() for feature in self.features],
-            index=[feature.title for feature in self.features],
-            columns=["Возможные значения"])
-
-        df_normal_values = pd.DataFrame(data=[feature.get_normal_value_representation() for feature in self.features],
-                                        index=[feature.title for feature in self.features],
-                                        columns=["Нормальные значения"])
-
-        # TODO: сделать интексацию для заболеваний, пропихнув параметр извне
-        df_clinical_picture = pd.DataFrame(data=[feature.title for feature in self.features],
-                                           index=[self.features[0].title for _ in range(len(self.features))],
-                                           columns=["Клиническая картина"])
-
-        df_number_of_periods_of_dynamic = pd.DataFrame(data=[("Заболевание0",
-                                                              feature.title,
-                                                              feature.number_of_periods_of_dynamic)
-                                                             for feature in self.features]) \
-            .pivot_table(index=[0, 1], aggfunc='first')
-
-        df_values_for_periods_of_dynamics = []
-        for feature in self.features:
-            for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
-                df_values_for_periods_of_dynamics.append(
-                    (
-                        "Заболевание0",
-                        feature.title,
-                        feature.number_of_periods_of_dynamic,
-                        current_number_of_period_dynamic,
-                        feature._get_values_for_periods_of_dynamic_representation(
-                            index=current_number_of_period_dynamic)
-                    )
-                )
-
-        df_values_for_periods_of_dynamics = pd.DataFrame(data=df_values_for_periods_of_dynamics).pivot_table(
-            index=[0, 1, 2, 3],
-            aggfunc='first'
-        )
-
-        df_upper_and_down_time_bound = []
-        for feature in self.features:
-            for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
-                df_upper_and_down_time_bound.append(
-                    (
-                        "Заболевание0",
-                        feature.title,
-                        feature.number_of_periods_of_dynamic,
-                        current_number_of_period_dynamic,
-                        feature.upper_and_down_time_bound[current_number_of_period_dynamic][0],
-                        feature.upper_and_down_time_bound[current_number_of_period_dynamic][1]
-                    )
-                )
-
-        df_upper_and_down_time_bound = pd.DataFrame(data=df_upper_and_down_time_bound).pivot_table(
-            index=[0, 1, 2, 3],
-            aggfunc='first'
-        )
-
-        self.open_writer(filename)
-
-        df_features.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=3)
-        df_possible_values.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=6)
-        df_normal_values.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=9)
-        df_clinical_picture.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=12)
-        df_number_of_periods_of_dynamic.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=16)
-        df_values_for_periods_of_dynamics.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0,
-                                                   startcol=20)
-        df_upper_and_down_time_bound.to_excel(self.writer, sheet_name="Sheet1", encoding="utf-8", startrow=0, startcol=26)
-
-    def make_report_about_medicine_history(self, filename: str):
-        df_medicine_history_without_concrete_values = []
-        for feature in self.features:
-            for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
-                df_medicine_history_without_concrete_values.append(
-                    (
-                        "ИБ0",
-                        "Заболевание0",
-                        feature.title,
-                        current_number_of_period_dynamic,
-                        feature.duration_of_period_dynamic[current_number_of_period_dynamic],
-                        feature.number_of_observation_moments[current_number_of_period_dynamic]
-                    )
-                )
-        df_medicine_history_without_concrete_values = pd.DataFrame(data=df_medicine_history_without_concrete_values).pivot_table(
-            index=[0, 1, 2, 3],
-            aggfunc="first"
-        )
-
-        df_medicine_history_with_concrete_values = []
-        for feature in self.features:
-            tmp_concrete_time_values = sum(feature.concrete_moment_of_observation, [])
-            for current_number_of_period_dynamic in range(len(tmp_concrete_time_values)):
-                df_medicine_history_with_concrete_values.append(
-                    (
-                        "ИБ0",
-                        "Заболевание0",
-                        feature.title,
-                        tmp_concrete_time_values[current_number_of_period_dynamic],
-                        feature.concrete_values_for_periods_of_dynamic_of_observation_moment[current_number_of_period_dynamic]
-                    )
-                )
-
-        df_medicine_history_with_concrete_values = pd.DataFrame(data=df_medicine_history_with_concrete_values).pivot_table(
-            index=[0, 1, 2, 3],
-            aggfunc="first"
-        )
-
-        self.open_writer(filename)
-
-        df_medicine_history_without_concrete_values.to_excel(self.writer, sheet_name="Sheet2", encoding="utf-8", startrow=0, startcol=0)
-        df_medicine_history_with_concrete_values.to_excel(self.writer, sheet_name="Sheet2", encoding="utf-8", startrow=0, startcol=7)
 
     def __str__(self):
         description = str(self.features)
@@ -356,10 +240,6 @@ class Disease:
 
     def __repr__(self):
         return self.__str__()
-
-    def __del__(self):
-        if self.writer:
-            self.writer.save()
 
 
 def _make_disease() -> Disease:
@@ -473,7 +353,7 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
     for number_of_dynamic_periods in range(2, 6):
         for first_disease, second_disease in tqdm(all_disease_combinations):
             for first_feature, second_feature in zip(first_disease.features, second_disease.features):
-                #TODO: delete
+                # TODO: delete
                 if first_feature.type is not FeatureType.ENUM:
                     continue
                 alternatives_with_target_periods_of_dynamic_of_first_feature = list(filter(
@@ -485,7 +365,7 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
                     second_feature.possible_alternatives
                 ))
                 if (len(alternatives_with_target_periods_of_dynamic_of_first_feature) == 0 or
-                    len(alternatives_with_target_periods_of_dynamic_of_second_feature) == 0):
+                        len(alternatives_with_target_periods_of_dynamic_of_second_feature) == 0):
                     continue
                 first_alternatives_index_in_moments_of_observation = []
                 first_flat_moments_of_observation = sum(first_feature.concrete_moment_of_observation, [])
@@ -514,52 +394,297 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
                         current_table = []
                         for dynamic_period_index in range(len(first_alternative)):
                             current_table.append((
-                                ("Alternative " + str(first_alternatives_index_in_moments_of_observation.index(first_alternative)) +
-                                " compared with alternative " + str(second_alternatives_index_in_moments_of_observation.index(second_alternative))),
+                                ("Alternative " + str(
+                                    first_alternatives_index_in_moments_of_observation.index(first_alternative)) +
+                                 " compared with alternative " + str(
+                                            second_alternatives_index_in_moments_of_observation.index(
+                                                second_alternative))),
                                 first_disease.medicine_history_title + " —> " + second_disease.medicine_history_title,
                                 dynamic_period_index + 1,
                                 first_feature.good_alternatives[tuple(first_alternative)][dynamic_period_index].union(
-                                second_feature.good_alternatives[tuple(second_alternative)][dynamic_period_index]),
+                                    second_feature.good_alternatives[tuple(second_alternative)][dynamic_period_index]),
                                 (
                                     min((
-                                        first_flat_moments_of_observation[first_alternative[dynamic_period_index]]
-                                        -
-                                        (0 if dynamic_period_index == 0 else first_flat_moments_of_observation[first_alternative[dynamic_period_index - 1]])
-                                        ),
+                                            first_flat_moments_of_observation[first_alternative[dynamic_period_index]]
+                                            -
+                                            (0 if dynamic_period_index == 0 else first_flat_moments_of_observation[
+                                                first_alternative[dynamic_period_index - 1]])
+                                    ),
                                         (
-                                        second_flat_moments_of_observation[second_alternative[dynamic_period_index]]
-                                        -
-                                        (0 if dynamic_period_index == 0 else second_flat_moments_of_observation[second_alternative[dynamic_period_index - 1]])
+                                                second_flat_moments_of_observation[
+                                                    second_alternative[dynamic_period_index]]
+                                                -
+                                                (0 if dynamic_period_index == 0 else second_flat_moments_of_observation[
+                                                    second_alternative[dynamic_period_index - 1]])
                                         )
                                     ),
                                     max((
-                                        first_flat_moments_of_observation[first_alternative[dynamic_period_index]]
-                                        -
-                                        (0 if dynamic_period_index == 0 else first_flat_moments_of_observation[first_alternative[dynamic_period_index - 1]])
-                                        ),
+                                            first_flat_moments_of_observation[first_alternative[dynamic_period_index]]
+                                            -
+                                            (0 if dynamic_period_index == 0 else first_flat_moments_of_observation[
+                                                first_alternative[dynamic_period_index - 1]])
+                                    ),
                                         (
-                                        second_flat_moments_of_observation[second_alternative[dynamic_period_index]]
-                                        -
-                                        (0 if dynamic_period_index == 0 else second_flat_moments_of_observation[second_alternative[dynamic_period_index - 1]])
+                                                second_flat_moments_of_observation[
+                                                    second_alternative[dynamic_period_index]]
+                                                -
+                                                (0 if dynamic_period_index == 0 else second_flat_moments_of_observation[
+                                                    second_alternative[dynamic_period_index - 1]])
                                         ))
                                 )
                             ))
                         is_break = False
                         for index in range(len(current_table) - 1):
                             if len(current_table[index][3].intersection(current_table[index + 1][3])) != 0:
-                                #print("BAD TABLE")
-                                #print(pd.DataFrame(data=current_table).to_markdown(index=False))
-                                #print("-" * 30)
+                                # print("BAD TABLE")
+                                # print(pd.DataFrame(data=current_table).to_markdown(index=False))
+                                # print("-" * 30)
                                 is_break = True
                                 break
                         if not is_break:
                             good_feature_alternatives.append(current_table)
-    for element in good_feature_alternatives:
-        element = pd.DataFrame(data=element)
-        print(element.to_markdown(index=False))
-        print("-" * 30)
-    print(len(good_feature_alternatives))
+    # for element in good_feature_alternatives:
+    #     element = pd.DataFrame(data=element)
+    #     print(element.to_markdown(index=False))
+    #     print("-" * 30)
+    # print(len(good_feature_alternatives))
     return good_feature_alternatives
+
+
+def make_first_report(diseases: [Disease]) -> None:
+    df_disease = pd.DataFrame(data=[disease.title for disease in diseases], columns=["Заболевания"])
+
+    df_disease.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=0, index=False)
+
+    df_features = pd.DataFrame(data=[f"Признак{index}" for index in range(len(diseases[0].features))],
+                               columns=["Признаки"])
+
+    df_features.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=2, index=False)
+
+    df_possible_values = pd.DataFrame(
+        data=[feature.get_possible_values_representation() for feature in diseases[0].features],
+        index=[feature.title for feature in diseases[0].features],
+        columns=["Возможные значения (ВЗ)"])
+
+    df_possible_values.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=4, index=True)
+
+    df_normal_values = pd.DataFrame(
+        data=[feature.get_normal_value_representation() for feature in diseases[0].features],
+        index=[feature.title for feature in diseases[0].features],
+        columns=["Нормальные значения (НЗ)"])
+
+    df_normal_values.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=7, index=True)
+
+    # TODO: сделать интексацию для заболеваний, пропихнув параметр извне
+    df_clinical_picture = pd.DataFrame(data=[feature.title for feature in diseases[0].features * 2],
+                                       index=[["Заболевание0"] * 6 + ["Заболевание1"] * 6],
+                                       columns=["Клиническая картина (КК)"])
+
+    df_clinical_picture.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=10, index=True)
+
+    df_number_of_periods_of_dynamic = pd.DataFrame(data=[("Заболевание0",
+                                                          feature.title,
+                                                          feature.number_of_periods_of_dynamic)
+                                                         for feature in diseases[0].features]).append(
+        pd.DataFrame(
+            data=[("Заболевание1",
+                   feature.title,
+                   feature.number_of_periods_of_dynamic)
+                  for feature in diseases[1].features]
+        )
+    ) \
+        .pivot_table(index=[0, 1], aggfunc="first")
+
+    df_number_of_periods_of_dynamic.columns = ["Число периодов динамики (ЧПД)"]
+
+    df_number_of_periods_of_dynamic.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0,
+                                             startcol=13, header=False)
+
+    df_values_for_first_periods_of_dynamics = []
+    for feature in diseases[0].features:
+        for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
+            df_values_for_first_periods_of_dynamics.append(
+                (
+                    "Заболевание0",
+                    feature.title,
+                    feature.number_of_periods_of_dynamic,
+                    current_number_of_period_dynamic,
+                    feature._get_values_for_periods_of_dynamic_representation(
+                        index=current_number_of_period_dynamic)
+                )
+            )
+
+    df_values_for_second_periods_of_dynamics = []
+    for feature in diseases[1].features:
+        for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
+            df_values_for_second_periods_of_dynamics.append(
+                (
+                    "Заболевание1",
+                    feature.title,
+                    feature.number_of_periods_of_dynamic,
+                    current_number_of_period_dynamic,
+                    feature._get_values_for_periods_of_dynamic_representation(
+                        index=current_number_of_period_dynamic)
+                )
+            )
+
+    df_values_for_first_periods_of_dynamics = pd.DataFrame(
+        data=df_values_for_first_periods_of_dynamics + df_values_for_second_periods_of_dynamics
+    ).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc="first"
+    )
+
+    df_values_for_first_periods_of_dynamics.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0,
+                                                     startcol=17, header=False)
+
+    df_upper_and_down_time_bound_for_first_disease = []
+    for feature in diseases[0].features:
+        for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
+            df_upper_and_down_time_bound_for_first_disease.append(
+                (
+                    "Заболевание0",
+                    feature.title,
+                    feature.number_of_periods_of_dynamic,
+                    current_number_of_period_dynamic,
+                    feature.upper_and_down_time_bound[current_number_of_period_dynamic][0],
+                    feature.upper_and_down_time_bound[current_number_of_period_dynamic][1]
+                )
+            )
+
+    df_upper_and_down_time_bound_for_second_disease = []
+    for feature in diseases[1].features:
+        for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
+            df_upper_and_down_time_bound_for_second_disease.append(
+                (
+                    "Заболевание1",
+                    feature.title,
+                    feature.number_of_periods_of_dynamic,
+                    current_number_of_period_dynamic,
+                    feature.upper_and_down_time_bound[current_number_of_period_dynamic][0],
+                    feature.upper_and_down_time_bound[current_number_of_period_dynamic][1]
+                )
+            )
+
+    df_upper_and_down_time_bound_for_first_disease += df_upper_and_down_time_bound_for_second_disease
+
+    df_upper_and_down_time_bound = pd.DataFrame(data=df_upper_and_down_time_bound_for_first_disease).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc="first"
+    )
+
+    df_upper_and_down_time_bound.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=23,
+                                          header=False)
+
+
+def make_second_report(first_diseases: [Disease], second_diseases: [Disease]):
+    df_medicine_history_short_first = []
+    for disease in first_diseases:
+        df_medicine_history_without_concrete_values = []
+        for feature in disease.features:
+            for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
+                df_medicine_history_without_concrete_values.append(
+                    (
+                        disease.medicine_history_title,
+                        disease.title,
+                        feature.title,
+                        current_number_of_period_dynamic,
+                        feature.duration_of_period_dynamic[current_number_of_period_dynamic],
+                        feature.number_of_observation_moments[current_number_of_period_dynamic]
+                    )
+                )
+        df_medicine_history_short_first.append(df_medicine_history_without_concrete_values)
+
+    df_medicine_history_short_second = []
+    for disease in second_diseases:
+        df_medicine_history_without_concrete_values = []
+        for feature in disease.features:
+            for current_number_of_period_dynamic in range(feature.number_of_periods_of_dynamic):
+                df_medicine_history_without_concrete_values.append(
+                    (
+                        disease.medicine_history_title,
+                        disease.title,
+                        feature.title,
+                        current_number_of_period_dynamic,
+                        feature.duration_of_period_dynamic[current_number_of_period_dynamic],
+                        feature.number_of_observation_moments[current_number_of_period_dynamic]
+                    )
+                )
+        df_medicine_history_short_second.append(df_medicine_history_without_concrete_values)
+
+    df_medicine_history_short_first = sum(df_medicine_history_short_first, [])
+    df_medicine_history_short_second = sum(df_medicine_history_short_second, [])
+
+    df_medicine_history_short_first = pd.DataFrame(
+        data=df_medicine_history_short_first).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc="first"
+    )
+
+    df_medicine_history_short_second = pd.DataFrame(
+        data=df_medicine_history_short_second).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc="first"
+    )
+
+    df_medicine_history_short_first = df_medicine_history_short_first.append(df_medicine_history_short_second)
+
+    df_medicine_history_short_first.to_excel(writer, sheet_name="2. МВД", encoding="utf-8", startrow=1,
+                                       startcol=0, header=False)
+
+    df_medicine_history_with_long_first = []
+    for disease in first_diseases:
+        df_medicine_history_with_concrete_values = []
+        for feature in disease.features:
+            tmp_concrete_time_values = sum(feature.concrete_moment_of_observation, [])
+            for current_number_of_period_dynamic in range(len(tmp_concrete_time_values)):
+                df_medicine_history_with_concrete_values.append(
+                    (
+                        disease.medicine_history_title,
+                        disease.title,
+                        feature.title,
+                        tmp_concrete_time_values[current_number_of_period_dynamic],
+                        feature.concrete_values_for_periods_of_dynamic_of_observation_moment[
+                            current_number_of_period_dynamic]
+                    )
+                )
+        df_medicine_history_with_long_first.append(df_medicine_history_with_concrete_values)
+
+    df_medicine_history_with_long_second = []
+    for disease in first_diseases:
+        df_medicine_history_with_concrete_values = []
+        for feature in disease.features:
+            tmp_concrete_time_values = sum(feature.concrete_moment_of_observation, [])
+            for current_number_of_period_dynamic in range(len(tmp_concrete_time_values)):
+                df_medicine_history_with_concrete_values.append(
+                    (
+                        disease.medicine_history_title,
+                        disease.title,
+                        feature.title,
+                        tmp_concrete_time_values[current_number_of_period_dynamic],
+                        feature.concrete_values_for_periods_of_dynamic_of_observation_moment[
+                            current_number_of_period_dynamic]
+                    )
+                )
+        df_medicine_history_with_long_second.append(df_medicine_history_with_concrete_values)
+
+    df_medicine_history_with_long_first = sum(df_medicine_history_with_long_first, [])
+    df_medicine_history_with_long_second = sum(df_medicine_history_with_long_second, [])
+
+    df_medicine_history_with_long_first = pd.DataFrame(data=df_medicine_history_with_long_first).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc="first"
+    )
+
+    df_medicine_history_with_long_second = pd.DataFrame(data=df_medicine_history_with_long_second).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc="first"
+    )
+
+    df_medicine_history_with_long_first = df_medicine_history_with_long_first.append(df_medicine_history_with_long_second)
+
+    df_medicine_history_with_long_first.to_excel(writer, sheet_name="2. МВД", encoding="utf-8", startrow=1,
+                                                      startcol=7, header=False)
 
 
 def main():
@@ -567,38 +692,50 @@ def main():
     assert (np is not None)
 
     first_disease = make_disease()
-    second_disease = deepcopy(first_disease)
+    second_disease = make_disease()
+    second_disease.title = "Заболевание1"
 
-    medicine_history_array = [deepcopy(make_medicine_history(first_disease)) for _ in range(5)]
-    for index, medicine_history in enumerate(medicine_history_array):
-        medicine_history.set_medicine_history_title(f"MedHist{index}")
+    make_first_report([first_disease, second_disease])
+
+    medicine_history_array_first = [deepcopy(make_medicine_history(first_disease)) for _ in range(5)]
+    for index, medicine_history in enumerate(medicine_history_array_first):
+        medicine_history.set_medicine_history_title(f"ИсторияБолезни{index}")
         generate_alternatives(medicine_history)
 
-    reduce_alternatives_for_medicine_story(medicine_history_array)
+    medicine_history_array_second = [deepcopy(make_medicine_history(second_disease)) for _ in range(5)]
+    for index, medicine_history in enumerate(medicine_history_array_second):
+        medicine_history.set_medicine_history_title(f"ИсторияБолезни{index}")
+        generate_alternatives(medicine_history)
 
-    #make_medicine_history(first_disease)
-    #make_medicine_history(second_disease)
+    make_second_report(medicine_history_array_first, medicine_history_array_second)
 
-    #first_disease.set_medicine_history_title("MedHist0")
-    #second_disease.set_medicine_history_title("MedHist1")
+    reduce_alternatives_for_medicine_story(medicine_history_array_first)
+    reduce_alternatives_for_medicine_story(medicine_history_array_second)
 
-    #generate_alternatives(first_disease)
-    #generate_alternatives(second_disease)
+    # make_medicine_history(first_disease)
+    # make_medicine_history(second_disease)
 
-    #reduce_alternatives_for_medicine_story([first_disease, second_disease])
+    # first_disease.set_medicine_history_title("MedHist0")
+    # second_disease.set_medicine_history_title("MedHist1")
 
-    #print(first_disease)
+    # generate_alternatives(first_disease)
+    # generate_alternatives(second_disease)
 
-    #generate_alternatives(second_disease)
+    # reduce_alternatives_for_medicine_story([first_disease, second_disease])
 
-    #print(second_disease)
+    # print(first_disease)
 
-    #disease.make_report_about_disease("tmp.xls")
-    #disease.make_report_about_medicine_history("tmp.xls")
+    # generate_alternatives(second_disease)
+
+    # print(second_disease)
+
+    # disease.make_report_about_disease("tmp.xls")
+    # disease.make_report_about_medicine_history("tmp.xls")
 
 
 if __name__ == "__main__":
     main()
+    writer.save()
     print("ALTERNATIVES TOTAL:", global_alt)
 
 # FeatureType.BOOL with possible values: [True, False] and normal values: True and number of periods of dynamic: 5

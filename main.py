@@ -43,6 +43,7 @@ class Feature:
         self.number_of_observation_moments = []
         self.concrete_moment_of_observation = []
         self.concrete_values_for_periods_of_dynamic_of_observation_moment = []
+        self.good_alternatives = {}
         # задание 3
         self.possible_alternatives = None
 
@@ -101,7 +102,8 @@ class Feature:
     def generate_number_of_observation_moments(self):
         current_number_of_observable_moments = []
         for i in range(self.number_of_periods_of_dynamic):
-            current_number_of_observable_moments.append(random.randint(1, 3))
+            #Тут задаётся количество значений для периода
+            current_number_of_observable_moments.append(random.randint(3, 5))
             if current_number_of_observable_moments[-1] > self.duration_of_period_dynamic[i]:
                 current_number_of_observable_moments[-1] = self.duration_of_period_dynamic[i]
         self.number_of_observation_moments = current_number_of_observable_moments
@@ -133,7 +135,7 @@ class Feature:
 
     def generate_alternatives_for_concrete_medicine_history(self):
         flat_moments_of_observation = sum(self.concrete_moment_of_observation, [])
-        alternatives = [[flat_moments_of_observation[-1] + 1]]
+        alternatives = [[flat_moments_of_observation[-1]]]
         for number_of_alternatives in range(2, 6):
             current_alternatives = list(
                 filter(lambda x: x[-1] == flat_moments_of_observation[-1],
@@ -174,6 +176,7 @@ class Feature:
                     ) > 0:
                         is_break = True
                 if not is_break:
+                    self.good_alternatives[tuple(alternative)] = list_of_unique_alternatives
                     alternatives.append(
                         [flat_moments_of_observation[alternative_index] for alternative_index in alternative]
                     )
@@ -202,7 +205,7 @@ class Feature:
             global_alt += 1
             description += "Possible alternative with " + str(len(alternative)) + " are:\n"
             if len(alternative) == 1:
-                description += f"[1, {alternative[0]})\n"
+                description += f"[1, {alternative[0] + 1})\n"
             else:
                 for index in range(len(alternative) - 1):
                     if index == 0:
@@ -215,10 +218,14 @@ class Feature:
 
 
 class Disease:
-    def __init__(self, features_type: [FeatureType]):
+    def __init__(self, features_type: [FeatureType], title: str):
+        self.title = title
+        self.medicine_history_title = None
         self.features = [Feature(x, index, None) for index, x in enumerate(features_type)]
-        self.duration_of_period_dynamic = []
         self.writer = None
+
+    def set_medicine_history_title(self, title: str):
+        self.medicine_history_title = title
 
     def open_writer(self, filename: str):
         if self.writer is None:
@@ -360,7 +367,7 @@ def _make_disease() -> Disease:
         FeatureType.ENUM,
         FeatureType.ENUM,
         FeatureType.ENUM
-    ])
+    ], title="Заболевание0")
 
 
 def generate_limits_for_features(disease: Disease) -> Disease:
@@ -444,22 +451,144 @@ def generate_alternatives(disease: Disease) -> Disease:
     return disease
 
 
+def make_possible_alternatives_description(feature: Feature) -> str:
+    description = str()
+    for alternative in feature.possible_alternatives:
+        description += "Possible alternative with " + str(len(alternative)) + " are:\n"
+        if len(alternative) == 1:
+            description += f"[1, {alternative[0] + 1})\n"
+        else:
+            for index in range(len(alternative) - 1):
+                if index == 0:
+                    description += f"[1, {alternative[index] + 1})\n"
+                description += f"[{alternative[index] + 1}, {alternative[index + 1] + 1})\n"
+
+
+def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
+    good_feature_alternatives = []
+    all_disease_combinations = list(combinations(diseases, 2))
+    for number_of_dynamic_periods in range(2, 6):
+        for first_disease, second_disease in all_disease_combinations:
+            for first_feature, second_feature in zip(first_disease.features, second_disease.features):
+                #TODO: delete
+                #if first_feature.type is not FeatureType.ENUM:
+                #    continue
+                alternatives_with_target_periods_of_dynamic_of_first_feature = list(filter(
+                    lambda x: len(x) == number_of_dynamic_periods,
+                    first_feature.possible_alternatives
+                ))
+                alternatives_with_target_periods_of_dynamic_of_second_feature = list(filter(
+                    lambda x: len(x) == number_of_dynamic_periods,
+                    second_feature.possible_alternatives
+                ))
+                if (len(alternatives_with_target_periods_of_dynamic_of_first_feature) == 0 or
+                    len(alternatives_with_target_periods_of_dynamic_of_second_feature) == 0):
+                    continue
+                first_alternatives_index_in_moments_of_observation = []
+                first_flat_moments_of_observation = sum(first_feature.concrete_moment_of_observation, [])
+                for alternative in alternatives_with_target_periods_of_dynamic_of_first_feature:
+                    first_alternatives_index_in_moments_of_observation.append(
+                        list(
+                            map(
+                                lambda x: first_flat_moments_of_observation.index(x),
+                                alternative
+                            )
+                        )
+                    )
+                second_alternatives_index_in_moments_of_observation = []
+                second_flat_moments_of_observation = sum(second_feature.concrete_moment_of_observation, [])
+                for alternative in alternatives_with_target_periods_of_dynamic_of_second_feature:
+                    second_alternatives_index_in_moments_of_observation.append(
+                        list(
+                            map(
+                                lambda x: second_flat_moments_of_observation.index(x),
+                                alternative
+                            )
+                        )
+                    )
+                for first_alternative in first_alternatives_index_in_moments_of_observation:
+                    for second_alternative in second_alternatives_index_in_moments_of_observation:
+                        current_table = []
+                        for dynamic_period_index in range(len(first_alternative)):
+                            current_table.append((
+                                first_disease.title + " —> " + second_disease.title,
+                                ("Alternative" + str(first_alternatives_index_in_moments_of_observation.index(first_alternative)) +
+                                " compared with alternative " + str(second_alternatives_index_in_moments_of_observation.index(second_alternative))),
+                                first_disease.medicine_history_title + " —> " + second_disease.medicine_history_title,
+                                dynamic_period_index + 1,
+                                first_feature.good_alternatives[tuple(first_alternative)][dynamic_period_index].union(
+                                second_feature.good_alternatives[tuple(second_alternative)][dynamic_period_index]),
+                                (
+                                    min((
+                                        first_flat_moments_of_observation[first_alternative[dynamic_period_index]]
+                                        -
+                                        (0 if dynamic_period_index == 0 else first_flat_moments_of_observation[first_alternative[dynamic_period_index - 1]])
+                                        ),
+                                        (
+                                        second_flat_moments_of_observation[second_alternative[dynamic_period_index]]
+                                        -
+                                        (0 if dynamic_period_index == 0 else second_flat_moments_of_observation[second_alternative[dynamic_period_index - 1]])
+                                        )
+                                    ),
+                                    max((
+                                        first_flat_moments_of_observation[first_alternative[dynamic_period_index]]
+                                        -
+                                        (0 if dynamic_period_index == 0 else first_flat_moments_of_observation[first_alternative[dynamic_period_index - 1]])
+                                        ),
+                                        (
+                                        second_flat_moments_of_observation[second_alternative[dynamic_period_index]]
+                                        -
+                                        (0 if dynamic_period_index == 0 else second_flat_moments_of_observation[second_alternative[dynamic_period_index - 1]])
+                                        ))
+                                )
+                            ))
+                        is_break = False
+                        for index in range(len(current_table) - 1):
+                            if len(current_table[index][4].intersection(current_table[index + 1][4])) != 0:
+                                #print("BAD TABLE")
+                                #print(pd.DataFrame(data=current_table).to_markdown(index=False))
+                                #print("-" * 30)
+                                is_break = True
+                                break
+                        if not is_break:
+                            good_feature_alternatives.append(current_table)
+    for element in good_feature_alternatives:
+        element = pd.DataFrame(data=element)
+        print(element.to_markdown(index=False))
+        print("-" * 30)
+    print(len(good_feature_alternatives))
+
+
 def main():
     assert (pd is not None)
     assert (np is not None)
 
     first_disease = make_disease()
     second_disease = deepcopy(first_disease)
-    make_medicine_history(first_disease)
-    make_medicine_history(second_disease)
 
-    generate_alternatives(first_disease)
+    medicine_history_array = [deepcopy(make_medicine_history(first_disease)) for _ in range(5)]
+    for index, medicine_history in enumerate(medicine_history_array):
+        medicine_history.set_medicine_history_title(f"MedHist{index}")
+        generate_alternatives(medicine_history)
 
-    print(first_disease)
+    reduce_alternatives_for_medicine_story(medicine_history_array)
 
-    generate_alternatives(second_disease)
+    #make_medicine_history(first_disease)
+    #make_medicine_history(second_disease)
 
-    print(second_disease)
+    #first_disease.set_medicine_history_title("MedHist0")
+    #second_disease.set_medicine_history_title("MedHist1")
+
+    #generate_alternatives(first_disease)
+    #generate_alternatives(second_disease)
+
+    #reduce_alternatives_for_medicine_story([first_disease, second_disease])
+
+    #print(first_disease)
+
+    #generate_alternatives(second_disease)
+
+    #print(second_disease)
 
     #disease.make_report_about_disease("tmp.xls")
     #disease.make_report_about_medicine_history("tmp.xls")

@@ -4,8 +4,11 @@ from enum import Enum
 import random
 from copy import deepcopy
 from itertools import combinations
+from tqdm import tqdm
 
 random.seed(42)
+
+writer = pd.ExcelWriter("Отчёт.xls", engine="openpyxl")
 
 enum_feature_possible_values = [chr(x + ord('a')) for x in range(26)]
 
@@ -468,11 +471,11 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
     good_feature_alternatives = []
     all_disease_combinations = list(combinations(diseases, 2))
     for number_of_dynamic_periods in range(2, 6):
-        for first_disease, second_disease in all_disease_combinations:
+        for first_disease, second_disease in tqdm(all_disease_combinations):
             for first_feature, second_feature in zip(first_disease.features, second_disease.features):
                 #TODO: delete
-                #if first_feature.type is not FeatureType.ENUM:
-                #    continue
+                if first_feature.type is not FeatureType.ENUM:
+                    continue
                 alternatives_with_target_periods_of_dynamic_of_first_feature = list(filter(
                     lambda x: len(x) == number_of_dynamic_periods,
                     first_feature.possible_alternatives
@@ -511,8 +514,7 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
                         current_table = []
                         for dynamic_period_index in range(len(first_alternative)):
                             current_table.append((
-                                first_disease.title + " —> " + second_disease.title,
-                                ("Alternative" + str(first_alternatives_index_in_moments_of_observation.index(first_alternative)) +
+                                ("Alternative " + str(first_alternatives_index_in_moments_of_observation.index(first_alternative)) +
                                 " compared with alternative " + str(second_alternatives_index_in_moments_of_observation.index(second_alternative))),
                                 first_disease.medicine_history_title + " —> " + second_disease.medicine_history_title,
                                 dynamic_period_index + 1,
@@ -544,7 +546,7 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
                             ))
                         is_break = False
                         for index in range(len(current_table) - 1):
-                            if len(current_table[index][4].intersection(current_table[index + 1][4])) != 0:
+                            if len(current_table[index][3].intersection(current_table[index + 1][3])) != 0:
                                 #print("BAD TABLE")
                                 #print(pd.DataFrame(data=current_table).to_markdown(index=False))
                                 #print("-" * 30)
@@ -557,6 +559,7 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
         print(element.to_markdown(index=False))
         print("-" * 30)
     print(len(good_feature_alternatives))
+    return good_feature_alternatives
 
 
 def main():

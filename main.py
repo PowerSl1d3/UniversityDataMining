@@ -6,9 +6,9 @@ from copy import deepcopy
 from itertools import combinations
 from tqdm import tqdm
 
-random.seed(42)
+random.seed(13)
 
-writer = pd.ExcelWriter("Отчёт.xls", engine="openpyxl")
+writer = pd.ExcelWriter("ОтчётОлег.xls", engine="openpyxl")
 
 enum_feature_possible_values = [chr(x + ord('a')) for x in range(26)]
 
@@ -349,6 +349,7 @@ def make_possible_alternatives_description(feature: Feature) -> str:
 
 def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
     good_feature_alternatives = []
+    bad_feature_alternatives = []
     all_disease_combinations = list(combinations(diseases, 2))
     for number_of_dynamic_periods in range(2, 6):
         for first_disease, second_disease in tqdm(all_disease_combinations):
@@ -394,13 +395,13 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
                         current_table = []
                         for dynamic_period_index in range(len(first_alternative)):
                             current_table.append((
-                                ("Alternative " + str(
+                                first_disease.medicine_history_title + " —> " + second_disease.medicine_history_title,
+                                ("Альтернатива " + str(
                                     first_alternatives_index_in_moments_of_observation.index(first_alternative)) +
-                                 " compared with alternative " + str(
+                                 " сравнивается с альтернативой " + str(
                                             second_alternatives_index_in_moments_of_observation.index(
                                                 second_alternative))),
-                                first_disease.medicine_history_title + " —> " + second_disease.medicine_history_title,
-                                dynamic_period_index + 1,
+                                dynamic_period_index,
                                 first_feature.good_alternatives[tuple(first_alternative)][dynamic_period_index].union(
                                     second_feature.good_alternatives[tuple(second_alternative)][dynamic_period_index]),
                                 (
@@ -443,12 +444,14 @@ def reduce_alternatives_for_medicine_story(diseases: [Disease]) -> []:
                                 break
                         if not is_break:
                             good_feature_alternatives.append(current_table)
+                        else:
+                            bad_feature_alternatives.append(current_table)
     # for element in good_feature_alternatives:
     #     element = pd.DataFrame(data=element)
     #     print(element.to_markdown(index=False))
     #     print("-" * 30)
     # print(len(good_feature_alternatives))
-    return good_feature_alternatives
+    return good_feature_alternatives, bad_feature_alternatives
 
 
 def make_first_report(diseases: [Disease]) -> None:
@@ -497,7 +500,7 @@ def make_first_report(diseases: [Disease]) -> None:
 
     df_number_of_periods_of_dynamic.columns = ["Число периодов динамики (ЧПД)"]
 
-    df_number_of_periods_of_dynamic.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0,
+    df_number_of_periods_of_dynamic.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=1,
                                              startcol=13, header=False)
 
     df_values_for_first_periods_of_dynamics = []
@@ -535,7 +538,7 @@ def make_first_report(diseases: [Disease]) -> None:
         aggfunc="first"
     )
 
-    df_values_for_first_periods_of_dynamics.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0,
+    df_values_for_first_periods_of_dynamics.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=1,
                                                      startcol=17, header=False)
 
     df_upper_and_down_time_bound_for_first_disease = []
@@ -573,7 +576,7 @@ def make_first_report(diseases: [Disease]) -> None:
         aggfunc="first"
     )
 
-    df_upper_and_down_time_bound.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=0, startcol=23,
+    df_upper_and_down_time_bound.to_excel(writer, sheet_name="1. МБЗ", encoding="utf-8", startrow=1, startcol=23,
                                           header=False)
 
 
@@ -687,6 +690,123 @@ def make_second_report(first_diseases: [Disease], second_diseases: [Disease]):
                                                       startcol=7, header=False)
 
 
+def append_elements(elements):
+    if len(elements) == 1:
+        return str(elements.values[0])
+    return " -> ".join(elements.values)
+
+
+def make_third_report(medicine_history_first, good_alternatives_first, bad_alternatives_first,
+                      medicine_history_second, good_alternatives_second, bad_alternatives_second):
+
+    first_medicine_history_alternatives_report = []
+    for history in medicine_history_first:
+        for feature in history.features:
+            if feature.type is not FeatureType.INTEGRAL:
+                continue
+            for feature_index, alternatives in enumerate(feature.possible_alternatives):
+                if len(alternatives) == 1:
+                    first_medicine_history_alternatives_report.append((
+                        history.medicine_history_title,
+                        history.title,
+                        feature.title,
+                        f"Альтернатива{len(alternatives)}.{feature_index}",
+                        f"[1, {alternatives[-1]})"
+                    ))
+                for index in range(len(alternatives) - 1):
+                    alternative_repr = str()
+                    if index == 0:
+                        alternative_repr = f"[1, {alternatives[index]})"
+                        first_medicine_history_alternatives_report.append((
+                            history.medicine_history_title,
+                            history.title,
+                            feature.title,
+                            f"Альтернатива{len(alternatives)}.{feature_index}",
+                            alternative_repr
+                        ))
+                    alternative_repr = f"[{alternatives[index]}, {alternatives[index + 1]})"
+                    first_medicine_history_alternatives_report.append((
+                        history.medicine_history_title,
+                        history.title,
+                        feature.title,
+                        f"Альтернатива{len(alternatives)}.{feature_index}",
+                        alternative_repr
+                    ))
+    first_medicine_history_alternatives_report = pd.DataFrame(data=first_medicine_history_alternatives_report).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc=append_elements
+    )
+    first_medicine_history_alternatives_report.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=1,
+                                                      startcol=0, header=False)
+
+    second_medicine_history_alternatives_report = []
+    for history in medicine_history_second:
+        for feature in history.features:
+            if feature.type is not FeatureType.INTEGRAL:
+                continue
+            for feature_index, alternatives in enumerate(feature.possible_alternatives):
+                if len(alternatives) == 1:
+                    second_medicine_history_alternatives_report.append((
+                        history.medicine_history_title,
+                        history.title,
+                        feature.title,
+                        f"Альтернатива{len(alternatives)}.{feature_index}",
+                        f"[1, {alternatives[-1]})"
+                    ))
+                for index in range(len(alternatives) - 1):
+                    alternative_repr = str()
+                    if index == 0:
+                        alternative_repr = f"[1, {alternatives[index]})"
+                        second_medicine_history_alternatives_report.append((
+                            history.medicine_history_title,
+                            history.title,
+                            feature.title,
+                            f"Альтернатива{len(alternatives)}.{feature_index}",
+                            alternative_repr
+                        ))
+                    alternative_repr = f"[{alternatives[index]}, {alternatives[index + 1]})"
+                    second_medicine_history_alternatives_report.append((
+                        history.medicine_history_title,
+                        history.title,
+                        feature.title,
+                        f"Альтернатива{len(alternatives)}.{feature_index}",
+                        alternative_repr
+                    ))
+    second_medicine_history_alternatives_report = pd.DataFrame(
+        data=second_medicine_history_alternatives_report).pivot_table(
+        index=[0, 1, 2, 3],
+        aggfunc=append_elements
+    )
+    second_medicine_history_alternatives_report.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=1,
+                                                        startcol=6, header=False)
+
+    index = 1
+    for bad_table in bad_alternatives_first:
+        bad_table = pd.DataFrame(data=bad_table)
+        bad_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=12, header=False)
+        index += len(bad_table) + 1
+
+    index = 1
+    for good_table in good_alternatives_first:
+        good_table = pd.DataFrame(data=good_table)
+        good_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=19,
+                           header=False)
+        index += len(good_table) + 1
+
+    index = 1
+    for bad_table in bad_alternatives_second:
+        bad_table = pd.DataFrame(data=bad_table)
+        bad_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=26, header=False)
+        index += len(bad_table) + 1
+
+    index = 1
+    for good_table in good_alternatives_second:
+        good_table = pd.DataFrame(data=good_table)
+        good_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=33,
+                            header=False)
+        index += len(good_table) + 1
+
+
 def main():
     assert (pd is not None)
     assert (np is not None)
@@ -709,41 +829,14 @@ def main():
 
     make_second_report(medicine_history_array_first, medicine_history_array_second)
 
-    reduce_alternatives_for_medicine_story(medicine_history_array_first)
-    reduce_alternatives_for_medicine_story(medicine_history_array_second)
+    good_alternatives_first, bad_alternatives_first = reduce_alternatives_for_medicine_story(medicine_history_array_first)
+    good_alternatives_second, bad_alternatives_second = reduce_alternatives_for_medicine_story(medicine_history_array_second)
 
-    # make_medicine_history(first_disease)
-    # make_medicine_history(second_disease)
-
-    # first_disease.set_medicine_history_title("MedHist0")
-    # second_disease.set_medicine_history_title("MedHist1")
-
-    # generate_alternatives(first_disease)
-    # generate_alternatives(second_disease)
-
-    # reduce_alternatives_for_medicine_story([first_disease, second_disease])
-
-    # print(first_disease)
-
-    # generate_alternatives(second_disease)
-
-    # print(second_disease)
-
-    # disease.make_report_about_disease("tmp.xls")
-    # disease.make_report_about_medicine_history("tmp.xls")
+    make_third_report(medicine_history_array_first, good_alternatives_first, bad_alternatives_first,
+                      medicine_history_array_second, good_alternatives_second, bad_alternatives_second)
 
 
 if __name__ == "__main__":
     main()
     writer.save()
     print("ALTERNATIVES TOTAL:", global_alt)
-
-# FeatureType.BOOL with possible values: [True, False] and normal values: True and number of periods of dynamic: 5
-# Values for periods of dynamics: [True, False, True, False, True]
-# Values for upper and down time bound of dynamics: [(7, 13), (9, 14), (5, 17), (8, 17), (5, 20)]
-# Time duration for concrete period dynamic: [11, 14, 7, 16, 12]
-# Number of observable moment for concrete period dynamic: [3, 2, 1, 3, 2]
-# Concrete moments of observation moment: [[3, 4, 6], [19, 20], [26], [34, 46, 48], [51, 59]]
-# Concrete values at moments of observation: [True, False, True, False, False, True, False, False, True, False, False]
-# Possible alternative with 1 are:
-# [1, 60)

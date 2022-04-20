@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 random.seed(13)
 
-writer = pd.ExcelWriter("ОтчётОлег.xls", engine="openpyxl")
+writer = pd.ExcelWriter("ИАД Аксененко Олег.xls", engine="openpyxl")
 
 enum_feature_possible_values = [chr(x + ord('a')) for x in range(26)]
 
@@ -654,7 +654,7 @@ def make_second_report(first_diseases: [Disease], second_diseases: [Disease]):
         df_medicine_history_with_long_first.append(df_medicine_history_with_concrete_values)
 
     df_medicine_history_with_long_second = []
-    for disease in first_diseases:
+    for disease in second_diseases:
         df_medicine_history_with_concrete_values = []
         for feature in disease.features:
             tmp_concrete_time_values = sum(feature.concrete_moment_of_observation, [])

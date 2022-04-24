@@ -11,8 +11,9 @@ import matplotlib.pyplot as plt
 from bs4 import BeautifulSoup as Soup
 
 random.seed(13)
+
 plt.rcParams.update({'figure.figsize': (7, 5), 'figure.dpi': 100})
-writer = pd.ExcelWriter("ИАД.Б9118-09.03.04прогин.АксененкоОлег.xls", engine="openpyxl")
+writer = pd.ExcelWriter("ИАД_ШешинМС.xls", engine="openpyxl")
 enum_feature_possible_values = [chr(x + ord('a')) for x in range(26)]
 global_alt = 0
 
@@ -54,19 +55,19 @@ class Feature:
 
     def get_possible_values_representation(self) -> str:
         if self.type is FeatureType.BOOL:
-            return "[есть, нет]"
+            return "[1, 0]"
         else:
             return str(self.bound)
 
     def get_normal_value_representation(self) -> str:
         if self.type is FeatureType.BOOL:
-            return "есть" if self.normal_value is True else "нет"
+            return "1" if self.normal_value is True else "0"
         else:
             return str(self.normal_value)
 
     def _get_values_for_periods_of_dynamic_representation(self, index: int) -> str:
         if self.type is FeatureType.BOOL:
-            return "есть" if self.values_for_periods_of_dynamic[index] is True else "нет"
+            return "1" if self.values_for_periods_of_dynamic[index] is True else "0"
         else:
             return self.values_for_periods_of_dynamic[index]
 
@@ -260,9 +261,9 @@ class Disease:
 def _make_disease() -> Disease:
     return Disease([
         FeatureType.BOOL,
+        FeatureType.BOOL,
         FeatureType.INTEGRAL,
-        FeatureType.ENUM,
-        FeatureType.ENUM,
+        FeatureType.INTEGRAL,
         FeatureType.ENUM,
         FeatureType.ENUM
     ], title="Заболевание0")

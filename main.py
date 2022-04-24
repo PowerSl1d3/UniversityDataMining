@@ -91,14 +91,20 @@ class Feature:
                 else:
                     self.values_for_periods_of_dynamic[index] = not generated_item
             elif self.type is FeatureType.ENUM:
-                generated_item = self.bound[random.randint(0, len(self.bound) - 1)]
-                while generated_item == last_appended_value:
-                    generated_item = self.bound[random.randint(0, len(self.bound) - 1)]
+                if last_appended_value is None:
+                    last_appended_value = [None]
+                generated_item = random.sample(self.bound, random.randint(1, len(self.bound) // 2))
+                while len(set(generated_item).intersection(set(last_appended_value))) > 0:
+                    generated_item = random.sample(self.bound, random.randint(1, len(self.bound) // 2))
                 self.values_for_periods_of_dynamic[index] = generated_item
             else:
-                generated_item = random.randint(0, self.bound[-1])
-                while generated_item == last_appended_value:
-                    generated_item = random.randint(0, self.bound[-1])
+                if last_appended_value is None:
+                    last_appended_value = [-1_000, -1_000]
+                max_range = random.randint(0, self.bound[-1])
+                generated_item = [random.randint(0 if max_range < self.bound[-1] // 2 else self.bound[-1] // 2, max_range), max_range]
+                while len(set(range(generated_item[0], generated_item[1])).intersection(set(range(last_appended_value[0], last_appended_value[1])))) > 0:
+                    max_range = random.randint(0, self.bound[-1])
+                    generated_item = [random.randint(0, max_range), max_range]
                 self.values_for_periods_of_dynamic[index] = generated_item
             last_appended_value = self.values_for_periods_of_dynamic[index]
 
@@ -137,19 +143,13 @@ class Feature:
             )))
 
         for index, moment_of_observation in enumerate(self.concrete_moment_of_observation):
-            skip_one = index != 0
-            if skip_one:
-                appended_value = self.concrete_values_for_periods_of_dynamic_of_observation_moment[-1]
-                while appended_value == self.concrete_values_for_periods_of_dynamic_of_observation_moment[-1]:
-                    appended_value = random.choice(
-                        self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(self.bound[0],
-                                                                                                 self.bound[1])
-                self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(appended_value)
-            for _ in moment_of_observation[0 + int(skip_one):]:
-                self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(
-                    random.choice(self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(
-                        self.bound[0], self.bound[1])
-                )
+            for _ in moment_of_observation:
+                if self.type is FeatureType.BOOL:
+                    self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(self.values_for_periods_of_dynamic[index])
+                elif self.type is FeatureType.ENUM:
+                    self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(*random.sample(self.values_for_periods_of_dynamic[index], 1))
+                else:
+                    self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(*random.sample(set(range(self.values_for_periods_of_dynamic[index][0], self.values_for_periods_of_dynamic[index][1])), 1))
 
     def generate_alternatives_for_concrete_medicine_history(self):
         flat_moments_of_observation = sum(self.concrete_moment_of_observation, [])
@@ -284,7 +284,7 @@ def generate_normal_values_for_features(disease: Disease) -> Disease:
         if feature.type is FeatureType.BOOL:
             feature.normal_value = feature.bound[random.randint(0, 1)]
         elif feature.type is FeatureType.ENUM:
-            feature.normal_value = feature.bound[random.randint(0, len(feature.bound) - 1)]
+            feature.normal_value = random.sample(feature.bound, random.randint(1, 2))
         else:
             feature.normal_value = [0, random.randrange(feature.bound[0], feature.bound[-1] // 2)]
     return disease
@@ -706,124 +706,7 @@ def make_second_report(first_diseases: [Disease], second_diseases: [Disease]):
                                                  startcol=7, header=False)
 
 
-def append_elements(elements):
-    if len(elements) == 1:
-        return str(elements.values[0])
-    return " -> ".join(elements.values)
-
-
-def make_third_report(medicine_history_first, good_alternatives_first, bad_alternatives_first,
-                      medicine_history_second, good_alternatives_second, bad_alternatives_second):
-    first_medicine_history_alternatives_report = []
-    for history in medicine_history_first:
-        for feature in history.features:
-            if feature.type is not FeatureType.INTEGRAL:
-                continue
-            for feature_index, alternatives in enumerate(feature.possible_alternatives):
-                if len(alternatives) == 1:
-                    first_medicine_history_alternatives_report.append((
-                        history.medicine_history_title,
-                        history.title,
-                        feature.title,
-                        f"Альтернатива{len(alternatives)}.{feature_index}",
-                        f"[1, {alternatives[-1]})"
-                    ))
-                for index in range(len(alternatives) - 1):
-                    alternative_repr = str()
-                    if index == 0:
-                        alternative_repr = f"[1, {alternatives[index]})"
-                        first_medicine_history_alternatives_report.append((
-                            history.medicine_history_title,
-                            history.title,
-                            feature.title,
-                            f"Альтернатива{len(alternatives)}.{feature_index}",
-                            alternative_repr
-                        ))
-                    alternative_repr = f"[{alternatives[index]}, {alternatives[index + 1]})"
-                    first_medicine_history_alternatives_report.append((
-                        history.medicine_history_title,
-                        history.title,
-                        feature.title,
-                        f"Альтернатива{len(alternatives)}.{feature_index}",
-                        alternative_repr
-                    ))
-    first_medicine_history_alternatives_report = pd.DataFrame(
-        data=first_medicine_history_alternatives_report).pivot_table(
-        index=[0, 1, 2, 3],
-        aggfunc=append_elements
-    )
-    first_medicine_history_alternatives_report.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=1,
-                                                        startcol=0, header=False)
-
-    second_medicine_history_alternatives_report = []
-    for history in medicine_history_second:
-        for feature in history.features:
-            if feature.type is not FeatureType.INTEGRAL:
-                continue
-            for feature_index, alternatives in enumerate(feature.possible_alternatives):
-                if len(alternatives) == 1:
-                    second_medicine_history_alternatives_report.append((
-                        history.medicine_history_title,
-                        history.title,
-                        feature.title,
-                        f"Альтернатива{len(alternatives)}.{feature_index}",
-                        f"[1, {alternatives[-1]})"
-                    ))
-                for index in range(len(alternatives) - 1):
-                    alternative_repr = str()
-                    if index == 0:
-                        alternative_repr = f"[1, {alternatives[index]})"
-                        second_medicine_history_alternatives_report.append((
-                            history.medicine_history_title,
-                            history.title,
-                            feature.title,
-                            f"Альтернатива{len(alternatives)}.{feature_index}",
-                            alternative_repr
-                        ))
-                    alternative_repr = f"[{alternatives[index]}, {alternatives[index + 1]})"
-                    second_medicine_history_alternatives_report.append((
-                        history.medicine_history_title,
-                        history.title,
-                        feature.title,
-                        f"Альтернатива{len(alternatives)}.{feature_index}",
-                        alternative_repr
-                    ))
-    second_medicine_history_alternatives_report = pd.DataFrame(
-        data=second_medicine_history_alternatives_report).pivot_table(
-        index=[0, 1, 2, 3],
-        aggfunc=append_elements
-    )
-    second_medicine_history_alternatives_report.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=1,
-                                                         startcol=6, header=False)
-
-    index = 1
-    for bad_table in bad_alternatives_first:
-        bad_table = pd.DataFrame(data=bad_table)
-        bad_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=12, header=False)
-        index += len(bad_table) + 1
-
-    index = 1
-    for good_table in good_alternatives_first:
-        good_table = pd.DataFrame(data=good_table)
-        good_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=19,
-                            header=False)
-        index += len(good_table) + 1
-
-    index = 1
-    for bad_table in bad_alternatives_second:
-        bad_table = pd.DataFrame(data=bad_table)
-        bad_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=26, header=False)
-        index += len(bad_table) + 1
-
-    index = 1
-    for good_table in good_alternatives_second:
-        good_table = pd.DataFrame(data=good_table)
-        good_table.to_excel(writer, sheet_name="3. ИФБЗ", encoding="utf-8", startrow=index, startcol=33,
-                            header=False)
-        index += len(good_table) + 1
-
-
-def make_alternatives_graphics(medicine_histories: [Disease]):
+def present_graphic_alternatives(medicine_histories: [Disease]):
     image_names = []
     for feature_index in range(len(medicine_histories[0].features)):
         feature_table = []
@@ -848,7 +731,7 @@ def make_alternatives_graphics(medicine_histories: [Disease]):
                 ax.set_title(title)
                 for limit in alternative:
                     plt.axvline(limit, color="red")
-                # plt.savefig(f"images/{title}")
+                plt.savefig(f"images/{title}")
                 image_names.append(f"images/{title}.png")
     return image_names
 
@@ -876,7 +759,7 @@ class Alternative:
         return self.__str__()
 
 
-def make_html_report(medicine_histories: [Disease]):
+def make_html_alternatives(medicine_histories: [Disease], filename):
     html = """
         <html>
         <head>
@@ -980,7 +863,7 @@ def make_html_report(medicine_histories: [Disease]):
                 body.append(paragraph)
                 body.append(page.new_tag("hr"))
 
-    with open("index.html", "w") as file:
+    with open(filename, "w") as file:
         file.write(str(page))
 
     # Генерация массива альтернатив
@@ -1006,10 +889,7 @@ def make_html_report(medicine_histories: [Disease]):
                 )
     return features_alternatives
 
-good_table_mergee_count = 0
-good_tables = []
-
-def make_html_report_extended(alternatives: [Alternative]):
+def make_html_alternative_comparsion(alternatives: [Alternative], filename):
     html = """
             <html>
             <head>
@@ -1028,10 +908,9 @@ def make_html_report_extended(alternatives: [Alternative]):
 
     best_tables = []
 
-    #for feature_index in range(len(alternatives)):
-    for feature_index in tqdm(range(4)):
+    for feature_index in tqdm(range(len(alternatives))):
         section_description = page.new_tag("li")
-        section_description.insert(0, f"Заболевание{feature_index}")
+        section_description.insert(0, f"Признак{feature_index}")
         nav.append(section_description)
         current_section_nav = page.new_tag("ul")
         nav.append(current_section_nav)
@@ -1131,7 +1010,7 @@ def make_html_report_extended(alternatives: [Alternative]):
                         ))
                     is_bad_merge = False
                     for index in range(len(result_table) - 1):
-                        if result_table[index][1].intersection(result_table[index + 1][1]) != 0:
+                        if len(result_table[index][1].intersection(result_table[index + 1][1])) != 0:
                             is_bad_merge = True
 
                     if len(merged_tables) == 5 and not is_bad_merge:
@@ -1196,7 +1075,7 @@ def make_html_report_extended(alternatives: [Alternative]):
         best_alternative_description.append(page.new_tag("hr"))
         body.append(best_alternative_description)
 
-    with open("alternative_concat.html", "w") as file:
+    with open(filename, "w") as file:
         file.write(str(page))
 
 
@@ -1208,7 +1087,7 @@ def main():
     second_disease = make_disease()
     second_disease.title = "Заболевание1"
 
-    # make_first_report([first_disease, second_disease])
+    make_first_report([first_disease, second_disease])
 
     medicine_history_array_first = [deepcopy(make_medicine_history(first_disease)) for _ in range(5)]
     for index, medicine_history in enumerate(medicine_history_array_first):
@@ -1220,38 +1099,19 @@ def main():
         medicine_history.set_medicine_history_title(f"ИБ{index}")
         generate_alternatives(medicine_history)
 
-    # make_second_report(medicine_history_array_first, medicine_history_array_second)
-    #
-    # good_alternatives_first, bad_alternatives_first = reduce_alternatives_for_medicine_story(medicine_history_array_first)
-    # good_alternatives_second, bad_alternatives_second = reduce_alternatives_for_medicine_story(medicine_history_array_second)
-    #
-    # make_third_report(medicine_history_array_first, good_alternatives_first, bad_alternatives_first,
-    #                  medicine_history_array_second, good_alternatives_second, bad_alternatives_second)
-    # image_names = make_alternatives_graphics(medicine_history_array_first)
+    make_second_report(medicine_history_array_first, medicine_history_array_second)
 
-    alternatives = make_html_report(medicine_history_array_first)
-    make_html_report_extended(alternatives)
+    present_graphic_alternatives(medicine_history_array_first)
+    present_graphic_alternatives(medicine_history_array_second)
 
-    # make_report_about_alternatives()
-    # make_alternatives_graphics(medicine_history_array_second)
+    alternatives = make_html_alternatives(medicine_history_array_first, "ГрафическоеПредставлениеАльтернативЗаболевания0.html")
+    make_html_alternative_comparsion(alternatives, "СравнениеАльтернативЗаболевания0.html")
+
+    alternatives = make_html_alternatives(medicine_history_array_second,
+                                          "ГрафическоеПредставлениеАльтернативЗаболевания1.html")
+    make_html_alternative_comparsion(alternatives, "СравнениеАльтернативЗаболевания1.html")
 
 
 if __name__ == "__main__":
-    # first_plot = plt.figure(1)
-    # plt.scatter(x=[1, 2, 3, 4], y=['a', 'b', 'c', 'd'])
-    # plt.grid(True)
-    # plt.axvline(2.5, color="red")
-    # second_plot = plt.figure(2)
-    # plt.scatter(x=[1, 2, 3], y=['a', 'b', 'c'])
-    # plt.grid(True)
-    # plt.axvline(2.5, color="red")
-    # plt.show()
     main()
-    print(good_table_mergee_count)
-    for element in good_tables:
-        print(element[0])
-        print(element[1])
-    # writer.save()
-    # print("ALTERNATIVES TOTAL:", global_alt)
-# TODO: заоптимизировать код сопоставления альтернатив
-# TODO: пофиксить багу с генерацией возможных значений и конкретных значений
+    writer.save()

@@ -143,19 +143,13 @@ class Feature:
             )))
 
         for index, moment_of_observation in enumerate(self.concrete_moment_of_observation):
-            skip_one = index != 0
-            if skip_one:
-                appended_value = self.concrete_values_for_periods_of_dynamic_of_observation_moment[-1]
-                while appended_value == self.concrete_values_for_periods_of_dynamic_of_observation_moment[-1]:
-                    appended_value = random.choice(
-                        self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(self.bound[0],
-                                                                                                 self.bound[1])
-                self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(appended_value)
-            for _ in moment_of_observation[0 + int(skip_one):]:
-                self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(
-                    random.choice(self.bound) if self.type is not FeatureType.INTEGRAL else random.randint(
-                        self.bound[0], self.bound[1])
-                )
+            for _ in moment_of_observation:
+                if self.type is FeatureType.BOOL:
+                    self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(self.values_for_periods_of_dynamic[index])
+                elif self.type is FeatureType.ENUM:
+                    self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(*random.sample(self.values_for_periods_of_dynamic[index], 1))
+                else:
+                    self.concrete_values_for_periods_of_dynamic_of_observation_moment.append(*random.sample(set(range(self.values_for_periods_of_dynamic[index][0], self.values_for_periods_of_dynamic[index][1])), 1))
 
     def generate_alternatives_for_concrete_medicine_history(self):
         flat_moments_of_observation = sum(self.concrete_moment_of_observation, [])
@@ -1235,7 +1229,7 @@ def main():
     #                  medicine_history_array_second, good_alternatives_second, bad_alternatives_second)
 
     #############
-    #make_alternatives_graphics(medicine_history_array_first)
+    make_alternatives_graphics(medicine_history_array_first)
 
     alternatives = make_html_report(medicine_history_array_first)
     make_html_report_extended(alternatives)

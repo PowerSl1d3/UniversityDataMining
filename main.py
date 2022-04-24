@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pandas as pd
 from enum import Enum
@@ -152,8 +154,9 @@ class Feature:
     def generate_alternatives_for_concrete_medicine_history(self):
         flat_moments_of_observation = sum(self.concrete_moment_of_observation, [])
         alternatives = [[flat_moments_of_observation[-1]]]
-        self.good_alternatives[len(flat_moments_of_observation) - 1,] = set(
-            self.concrete_values_for_periods_of_dynamic_of_observation_moment)
+        self.good_alternatives[len(flat_moments_of_observation) - 1,] = [set(
+            self.concrete_values_for_periods_of_dynamic_of_observation_moment
+        )]
         for number_of_alternatives in range(2, 6):
             current_alternatives = list(
                 filter(lambda x: x[-1] == flat_moments_of_observation[-1],
@@ -850,7 +853,30 @@ def make_alternatives_graphics(medicine_histories: [Disease]):
     return image_names
 
 
-def make_html_report(medicine_histories: [Disease], image_names: [str]):
+class Alternative:
+    def __init__(self,
+                 feature,
+                 medicine_history_title,
+                 disease_title,
+                 feature_title,
+                 number_of_periods_of_dynamic,
+                 alternative_index,
+                 ):
+        self.feature = feature
+        self.medicine_history_title = medicine_history_title
+        self.disease_title = disease_title
+        self.feature_title = feature_title
+        self.number_of_periods_of_dynamic = number_of_periods_of_dynamic
+        self.alternative_index = alternative_index
+
+    def __str__(self):
+        return f"{self.medicine_history_title}, {self.disease_title}, {self.feature_title}, ЧПД{self.number_of_periods_of_dynamic}, а{self.alternative_index:03d}"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+def make_html_report(medicine_histories: [Disease]):
     html = """
         <html>
         <head>
@@ -957,6 +983,222 @@ def make_html_report(medicine_histories: [Disease], image_names: [str]):
     with open("index.html", "w") as file:
         file.write(str(page))
 
+    # Генерация массива альтернатив
+    features_alternatives = list()
+    for _ in range(len(medicine_histories[0].features)):
+        features_alternatives.append([])
+    for feature_index in range(len(medicine_histories[0].features)):
+        feature = medicine_histories[0].features[feature_index]
+        if feature.type is FeatureType.INTEGRAL:
+            continue
+        for medicine_history in medicine_histories:
+            feature = medicine_history.features[feature_index]
+            for index, alternative in enumerate(feature.possible_alternatives):
+                features_alternatives[feature_index].append(
+                    Alternative(
+                        deepcopy(feature),
+                        medicine_history.medicine_history_title,
+                        medicine_history.title,
+                        feature.title,
+                        len(alternative),
+                        index
+                    )
+                )
+    return features_alternatives
+
+good_table_mergee_count = 0
+good_tables = []
+
+def make_html_report_extended(alternatives: [Alternative]):
+    html = """
+            <html>
+            <head>
+            <title>IAD</title>
+            </head>
+            <body>
+            </body>
+            </html>
+            """
+    page = Soup(html, features="html.parser")
+    body = page.find("body")
+    body["name"] = "top"
+
+    nav = page.new_tag("ul")
+    body.append(nav)
+
+    best_tables = []
+
+    #for feature_index in range(len(alternatives)):
+    for feature_index in tqdm(range(4)):
+        section_description = page.new_tag("li")
+        section_description.insert(0, f"Заболевание{feature_index}")
+        nav.append(section_description)
+        current_section_nav = page.new_tag("ul")
+        nav.append(current_section_nav)
+        current_splited_alternatives_by_medicine_history = []
+        for _ in range(5):
+            current_splited_alternatives_by_medicine_history.append([])
+        for alternative in alternatives[feature_index]:
+            current_splited_alternatives_by_medicine_history[int(alternative.medicine_history_title[-1])].append(
+                alternative
+            )
+        for number_of_periods_of_dynamic in range(1, 6):
+            current_splited_alternatives_by_number_of_periods_of_dynamic = []
+            for _ in range(5):
+                current_splited_alternatives_by_number_of_periods_of_dynamic.append([])
+            for alternative_index, alternative in enumerate(current_splited_alternatives_by_medicine_history):
+                for concrete_alternative in alternative:
+                    if concrete_alternative.number_of_periods_of_dynamic == number_of_periods_of_dynamic:
+                        current_splited_alternatives_by_number_of_periods_of_dynamic[alternative_index].append(
+                            concrete_alternative
+                        )
+            for possible_alternatives_merge in itertools.product(*current_splited_alternatives_by_number_of_periods_of_dynamic):
+                for max_merge_index in range(2, 6):
+                    current_alternatives = possible_alternatives_merge[:max_merge_index]
+                    #print("Соединяем альтернативы")
+
+                    #Строим навигацию
+                    merged_alternatives = page.new_tag("li")
+                    a = page.new_tag("a")
+                    a.insert(0, str(current_alternatives)[1:-1])
+                    a["href"] = "#" + str(current_alternatives)[1:-1]
+                    merged_alternatives.append(a)
+                    current_section_nav.append(merged_alternatives)
+
+                    #Добавляем основное содержание страницы
+                    concat_description = page.new_tag("p")
+                    concat_description["align"] = "center"
+                    concat_description["style"] = "font-size: 20px"
+                    concat_description["id"] = str(current_alternatives)[1:-1]
+                    concat_description.insert(0, "Соединяем альтернативы: " + str(current_alternatives)[1:-1])
+                    text_description = page.new_tag("pre")
+                    text_description["align"] = "center"
+                    text_description["style"] = "font-size: 20px"
+                    alternative_image_container = page.new_tag("div")
+
+                    body.append(concat_description)
+                    concat_description.append(alternative_image_container)
+                    concat_description.append(text_description)
+
+                    merged_tables = []
+                    for alternative in current_alternatives:
+                        #print(alternative)
+
+                        alternative_image = page.new_tag("img")
+                        alternative_image["src"] = "images/" + str(alternative) + ".png"
+                        alternative_image_container.append(alternative_image)
+
+                        dynamic_periods = alternative.feature.possible_alternatives[alternative.alternative_index]
+                        dynamic_periods_with_index = list(map(lambda x: sum(alternative.feature.concrete_moment_of_observation, []).index(x), dynamic_periods))
+                        concrete_values_by_periods = alternative.feature.good_alternatives[tuple(dynamic_periods_with_index)]
+
+                        table = []
+                        for period_index in range(len(dynamic_periods)):
+                            if period_index == 0:
+                                table.append((period_index + 1, concrete_values_by_periods[period_index], dynamic_periods[period_index], dynamic_periods[period_index]))
+                            else:
+                                table.append((period_index + 1, concrete_values_by_periods[period_index],
+                                              dynamic_periods[period_index] - dynamic_periods[period_index - 1], dynamic_periods[period_index] - dynamic_periods[period_index - 1]))
+                        merged_tables.append(table)
+                        #print(pd.DataFrame(data=table).to_markdown(index=False))
+                        text_description.append(str(alternative) + "\n\n\n")
+                        text_description.append(pd.DataFrame(
+                            data=table,
+                            columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
+                        ).to_markdown(index=False))
+                        text_description.append("\n\n\n")
+                    splited_rows_by_period_dynamic = []
+                    for period_index in range(1, number_of_periods_of_dynamic + 1):
+                        splited_rows_by_period_dynamic.append([])
+                        for table in merged_tables:
+                            for row in table:
+                                if row[0] == period_index:
+                                    splited_rows_by_period_dynamic[period_index - 1].append(row)
+                    result_table = []
+                    for period_index in range(1, number_of_periods_of_dynamic + 1):
+                        union_of_values = set()
+                        min_value_of_dynamic_period = 1_000_000
+                        max_value_of_dynamic_period = -1_000_000
+                        for current_row in splited_rows_by_period_dynamic[period_index - 1]:
+                            union_of_values = union_of_values.union(current_row[1])
+                            min_value_of_dynamic_period = min(min_value_of_dynamic_period, current_row[2])
+                            max_value_of_dynamic_period = max(max_value_of_dynamic_period, current_row[2])
+                        result_table.append((
+                            period_index,
+                            union_of_values,
+                            min_value_of_dynamic_period,
+                            max_value_of_dynamic_period
+                        ))
+                    is_bad_merge = False
+                    for index in range(len(result_table) - 1):
+                        if result_table[index][1].intersection(result_table[index + 1][1]) != 0:
+                            is_bad_merge = True
+
+                    if len(merged_tables) == 5 and not is_bad_merge:
+                        best_tables.append((f"Заболевание{feature_index}", str(current_alternatives)[1:-1], result_table))
+
+                    result_table = pd.DataFrame(
+                        data=result_table,
+                        columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
+                    ).to_markdown()
+                    description_of_appending = page.new_tag("pre")
+                    description_of_appending["style"] = "font-size: 20px;"
+                    if is_bad_merge:
+                        description_of_appending.insert(0, "Плохое сопоставление")
+                        description_of_appending["style"] += "color: red;"
+                    else:
+                        description_of_appending.insert(0, "Хорошее сопоставление")
+                        description_of_appending["style"] += "color: green;"
+                    description_of_appending.append("\n\n\n" + result_table)
+                    text_description.append(description_of_appending)
+                    anchor = page.new_tag("a")
+                    anchor.insert(0, "Наверх↑")
+                    anchor["href"] = "#top"
+                    text_description.append(anchor)
+                    text_description.append(page.new_tag("hr"))
+                    #print("RESULT:")
+                    #print(result_table)
+                    #print("-" * 30)
+    best_tables_section = page.new_tag("li")
+    best_tables_section.insert(0, "Лучшие альтернативы")
+    nav.append(best_tables_section)
+    best_table_nav = page.new_tag("ul")
+    best_tables_section.append(best_table_nav)
+    best_alternative_title = page.new_tag("pre")
+    best_alternative_title["align"] = "center"
+    best_alternative_title["style"] = "font-size: 30px;"
+    best_alternative_title.insert(0, "Лучшие альтернативы")
+    body.append(best_alternative_title)
+    body.append(page.new_tag("hr"))
+    for table in best_tables:
+        row = page.new_tag("li")
+        a = page.new_tag("a")
+        a.insert(0, table[1])
+        a["href"] = "#" + table[0] + table[1]
+        row.append(a)
+        best_table_nav.append(row)
+
+    for table in best_tables:
+        best_alternative_description = page.new_tag("pre")
+        best_alternative_description["align"] = "center"
+        best_alternative_description["style"] = "font-size: 20px; color: green;"
+        best_alternative_description["id"] = table[0] + table[1]
+        best_alternative_description.append(table[0] + "\n\n\n")
+        best_alternative_description.append(table[1] + "\n\n\n")
+        best_alternative_description.append(pd.DataFrame(
+            data=table[2],
+            columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
+        ).to_markdown() + "\n\n\n")
+        anchor = page.new_tag("a")
+        anchor.insert(0, "Наверх↑")
+        anchor["href"] = "#top"
+        best_alternative_description.append(anchor)
+        best_alternative_description.append(page.new_tag("hr"))
+        body.append(best_alternative_description)
+
+    with open("alternative_concat.html", "w") as file:
+        file.write(str(page))
+
 
 def main():
     assert (pd is not None)
@@ -986,7 +1228,10 @@ def main():
     # make_third_report(medicine_history_array_first, good_alternatives_first, bad_alternatives_first,
     #                  medicine_history_array_second, good_alternatives_second, bad_alternatives_second)
     # image_names = make_alternatives_graphics(medicine_history_array_first)
-    make_html_report(medicine_history_array_first, [])
+
+    alternatives = make_html_report(medicine_history_array_first)
+    make_html_report_extended(alternatives)
+
     # make_report_about_alternatives()
     # make_alternatives_graphics(medicine_history_array_second)
 
@@ -1002,5 +1247,11 @@ if __name__ == "__main__":
     # plt.axvline(2.5, color="red")
     # plt.show()
     main()
+    print(good_table_mergee_count)
+    for element in good_tables:
+        print(element[0])
+        print(element[1])
     # writer.save()
     # print("ALTERNATIVES TOTAL:", global_alt)
+# TODO: заоптимизировать код сопоставления альтернатив
+# TODO: пофиксить багу с генерацией возможных значений и конкретных значений

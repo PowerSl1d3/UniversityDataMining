@@ -284,7 +284,7 @@ def generate_normal_values_for_features(disease: Disease) -> Disease:
         if feature.type is FeatureType.BOOL:
             feature.normal_value = feature.bound[random.randint(0, 1)]
         elif feature.type is FeatureType.ENUM:
-            feature.normal_value = feature.bound[random.randint(0, len(feature.bound) - 1)]
+            feature.normal_value = random.sample(feature.bound, random.randint(1, 2))
         else:
             feature.normal_value = [0, random.randrange(feature.bound[0], feature.bound[-1] // 2)]
     return disease
@@ -848,7 +848,7 @@ def make_alternatives_graphics(medicine_histories: [Disease]):
                 ax.set_title(title)
                 for limit in alternative:
                     plt.axvline(limit, color="red")
-                # plt.savefig(f"images/{title}")
+                plt.savefig(f"images/{title}")
                 image_names.append(f"images/{title}.png")
     return image_names
 
@@ -1029,7 +1029,7 @@ def make_html_report_extended(alternatives: [Alternative]):
     best_tables = []
 
     #for feature_index in range(len(alternatives)):
-    for feature_index in tqdm(range(4)):
+    for feature_index in tqdm(range(1)):
         section_description = page.new_tag("li")
         section_description.insert(0, f"Заболевание{feature_index}")
         nav.append(section_description)
@@ -1208,7 +1208,7 @@ def main():
     second_disease = make_disease()
     second_disease.title = "Заболевание1"
 
-    # make_first_report([first_disease, second_disease])
+    make_first_report([first_disease, second_disease])
 
     medicine_history_array_first = [deepcopy(make_medicine_history(first_disease)) for _ in range(5)]
     for index, medicine_history in enumerate(medicine_history_array_first):
@@ -1220,17 +1220,20 @@ def main():
         medicine_history.set_medicine_history_title(f"ИБ{index}")
         generate_alternatives(medicine_history)
 
-    # make_second_report(medicine_history_array_first, medicine_history_array_second)
+    make_second_report(medicine_history_array_first, medicine_history_array_second)
     #
     # good_alternatives_first, bad_alternatives_first = reduce_alternatives_for_medicine_story(medicine_history_array_first)
     # good_alternatives_second, bad_alternatives_second = reduce_alternatives_for_medicine_story(medicine_history_array_second)
     #
     # make_third_report(medicine_history_array_first, good_alternatives_first, bad_alternatives_first,
     #                  medicine_history_array_second, good_alternatives_second, bad_alternatives_second)
-    # image_names = make_alternatives_graphics(medicine_history_array_first)
+
+    #############
+    #make_alternatives_graphics(medicine_history_array_first)
 
     alternatives = make_html_report(medicine_history_array_first)
     make_html_report_extended(alternatives)
+    #############
 
     # make_report_about_alternatives()
     # make_alternatives_graphics(medicine_history_array_second)
@@ -1253,5 +1256,6 @@ if __name__ == "__main__":
         print(element[1])
     # writer.save()
     # print("ALTERNATIVES TOTAL:", global_alt)
+    writer.save()
 # TODO: заоптимизировать код сопоставления альтернатив
 # TODO: пофиксить багу с генерацией возможных значений и конкретных значений

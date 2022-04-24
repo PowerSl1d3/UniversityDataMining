@@ -91,14 +91,20 @@ class Feature:
                 else:
                     self.values_for_periods_of_dynamic[index] = not generated_item
             elif self.type is FeatureType.ENUM:
-                generated_item = self.bound[random.randint(0, len(self.bound) - 1)]
-                while generated_item == last_appended_value:
-                    generated_item = self.bound[random.randint(0, len(self.bound) - 1)]
+                if last_appended_value is None:
+                    last_appended_value = [None]
+                generated_item = random.sample(self.bound, random.randint(1, len(self.bound) // 2))
+                while len(set(generated_item).intersection(set(last_appended_value))) > 0:
+                    generated_item = random.sample(self.bound, random.randint(1, len(self.bound) // 2))
                 self.values_for_periods_of_dynamic[index] = generated_item
             else:
-                generated_item = random.randint(0, self.bound[-1])
-                while generated_item == last_appended_value:
-                    generated_item = random.randint(0, self.bound[-1])
+                if last_appended_value is None:
+                    last_appended_value = [-1_000, -1_000]
+                max_range = random.randint(0, self.bound[-1])
+                generated_item = [random.randint(0 if max_range < self.bound[-1] // 2 else self.bound[-1] // 2, max_range), max_range]
+                while len(set(range(generated_item[0], generated_item[1])).intersection(set(range(last_appended_value[0], last_appended_value[1])))) > 0:
+                    max_range = random.randint(0, self.bound[-1])
+                    generated_item = [random.randint(0, max_range), max_range]
                 self.values_for_periods_of_dynamic[index] = generated_item
             last_appended_value = self.values_for_periods_of_dynamic[index]
 

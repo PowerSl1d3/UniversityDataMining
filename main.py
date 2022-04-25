@@ -10,9 +10,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from bs4 import BeautifulSoup as Soup
 
-random.seed(13)
+random.seed(24)
+#897 - 898
 plt.rcParams.update({'figure.figsize': (7, 5), 'figure.dpi': 100})
-writer = pd.ExcelWriter("ИАД.Б9118-09.03.04прогин.АксененкоОлег.xls", engine="openpyxl")
+writer = pd.ExcelWriter("ИАД Б9118-09.03.04прогин КимАнастасия.xls", engine="openpyxl")
 enum_feature_possible_values = [chr(x + ord('a')) for x in range(26)]
 global_alt = 0
 
@@ -102,7 +103,7 @@ class Feature:
                     last_appended_value = [-1_000, -1_000]
                 max_range = random.randint(0, self.bound[-1])
                 generated_item = [random.randint(0 if max_range < self.bound[-1] // 2 else self.bound[-1] // 2, max_range), max_range]
-                while len(set(range(generated_item[0], generated_item[1])).intersection(set(range(last_appended_value[0], last_appended_value[1])))) > 0:
+                while len(set(range(generated_item[0], generated_item[1])).intersection(set(range(last_appended_value[0], last_appended_value[1])))) > 0 or generated_item[0] == generated_item[1]:
                     max_range = random.randint(0, self.bound[-1])
                     generated_item = [random.randint(0, max_range), max_range]
                 self.values_for_periods_of_dynamic[index] = generated_item
@@ -260,9 +261,9 @@ class Disease:
 def _make_disease() -> Disease:
     return Disease([
         FeatureType.BOOL,
+        FeatureType.BOOL,
         FeatureType.INTEGRAL,
-        FeatureType.ENUM,
-        FeatureType.ENUM,
+        FeatureType.INTEGRAL,
         FeatureType.ENUM,
         FeatureType.ENUM
     ], title="Заболевание0")
@@ -706,7 +707,8 @@ def make_second_report(first_diseases: [Disease], second_diseases: [Disease]):
                                                  startcol=7, header=False)
 
 
-def present_graphic_alternatives(medicine_histories: [Disease]):
+def present_graphic_alternatives(medicine_histories: [Disease], filename):
+    output = open(filename, mode="w", encoding="utf-8")
     image_names = []
     for feature_index in range(len(medicine_histories[0].features)):
         feature_table = []
@@ -719,6 +721,22 @@ def present_graphic_alternatives(medicine_histories: [Disease]):
             x = sum(feature.concrete_moment_of_observation, [])
             y = feature.concrete_values_for_periods_of_dynamic_of_observation_moment
             for index, alternative in enumerate(feature.possible_alternatives):
+
+                possible_alternatives_index = [x.index(moment) for moment in alternative]
+                values_per_period_dynamic = feature.good_alternatives[tuple(possible_alternatives_index)]
+
+                output_table = []
+                for index in range(len(alternative)):
+                    output_table.append((index + 1, values_per_period_dynamic[index], alternative[index]))
+
+                output_table = pd.DataFrame(
+                    data=output_table,
+                    columns=["Номер периода динамики", "Значения в момент наблюдения", "Момент наблюдения"]
+                ).to_csv(index=False)
+
+                output.write(f"{medicine_history.medicine_history_title}, {medicine_history.title}, {feature.title}, ЧПД{len(alternative)}, а{index:03d}\n")
+                output.write(output_table + "\n\n\n")
+
                 fig, ax = plt.subplots()
                 ax.scatter(
                     x=x,
@@ -731,8 +749,9 @@ def present_graphic_alternatives(medicine_histories: [Disease]):
                 ax.set_title(title)
                 for limit in alternative:
                     plt.axvline(limit, color="red")
-                plt.savefig(f"images/{title}")
+                #plt.savefig(f"images/{title}")
                 image_names.append(f"images/{title}.png")
+    output.close()
     return image_names
 
 
@@ -908,6 +927,8 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
 
     best_tables = []
 
+    output = open(filename[:-4] + "csv", mode="w", encoding="utf-8")
+
     for feature_index in tqdm(range(len(alternatives))):
         section_description = page.new_tag("li")
         section_description.insert(0, f"Признак{feature_index}")
@@ -950,6 +971,10 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
                     concat_description["style"] = "font-size: 20px"
                     concat_description["id"] = str(current_alternatives)[1:-1]
                     concat_description.insert(0, "Соединяем альтернативы: " + str(current_alternatives)[1:-1])
+                    output.write("Соединяем альтернативы:,,,,\n")
+                    for alternative in current_alternatives:
+                        output.write(str(alternative) + "\n")
+                    output.write("\n\n")
                     text_description = page.new_tag("pre")
                     text_description["align"] = "center"
                     text_description["style"] = "font-size: 20px"
@@ -985,6 +1010,11 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
                             data=table,
                             columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
                         ).to_markdown(index=False))
+                        output.write(str(alternative) + "\n")
+                        output.write(pd.DataFrame(
+                            data=table,
+                            columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
+                        ).to_csv(index=False) + "\n\n")
                         text_description.append("\n\n\n")
                     splited_rows_by_period_dynamic = []
                     for period_index in range(1, number_of_periods_of_dynamic + 1):
@@ -1016,18 +1046,26 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
                     if len(merged_tables) == 5 and not is_bad_merge:
                         best_tables.append((f"Заболевание{feature_index}", str(current_alternatives)[1:-1], result_table))
 
+                    tmp_result_table = pd.DataFrame(
+                        data=result_table,
+                        columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
+                    ).to_csv(index=False)
+
                     result_table = pd.DataFrame(
                         data=result_table,
                         columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
-                    ).to_markdown()
+                    ).to_markdown(index=False)
                     description_of_appending = page.new_tag("pre")
                     description_of_appending["style"] = "font-size: 20px;"
                     if is_bad_merge:
+                        output.write("Плохое сопоставление\n")
                         description_of_appending.insert(0, "Плохое сопоставление")
                         description_of_appending["style"] += "color: red;"
                     else:
+                        output.write("Хорошее сопоставление\n")
                         description_of_appending.insert(0, "Хорошее сопоставление")
                         description_of_appending["style"] += "color: green;"
+                    output.write(tmp_result_table + "\n\n\n")
                     description_of_appending.append("\n\n\n" + result_table)
                     text_description.append(description_of_appending)
                     anchor = page.new_tag("a")
@@ -1057,17 +1095,27 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
         row.append(a)
         best_table_nav.append(row)
 
+    output.write("Лучшие альтернативы:\n\n\n")
+
     for table in best_tables:
         best_alternative_description = page.new_tag("pre")
         best_alternative_description["align"] = "center"
         best_alternative_description["style"] = "font-size: 20px; color: green;"
         best_alternative_description["id"] = table[0] + table[1]
+        output.write(table[0] + "\n")
+        output.write(table[1] + "\n")
         best_alternative_description.append(table[0] + "\n\n\n")
         best_alternative_description.append(table[1] + "\n\n\n")
         best_alternative_description.append(pd.DataFrame(
             data=table[2],
             columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
         ).to_markdown() + "\n\n\n")
+        output.write(
+            pd.DataFrame(
+            data=table[2],
+            columns=["Номер периода динамики", "Значения в период динамики", "НГ", "ВГ"]
+            ).to_csv(index=False) + "\n\n\n"
+        )
         anchor = page.new_tag("a")
         anchor.insert(0, "Наверх↑")
         anchor["href"] = "#top"
@@ -1077,6 +1125,7 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
 
     with open(filename, "w") as file:
         file.write(str(page))
+    output.close()
 
 
 def main():
@@ -1101,8 +1150,8 @@ def main():
 
     make_second_report(medicine_history_array_first, medicine_history_array_second)
 
-    present_graphic_alternatives(medicine_history_array_first)
-    present_graphic_alternatives(medicine_history_array_second)
+    present_graphic_alternatives(medicine_history_array_first, "Альтернативы0.csv")
+    present_graphic_alternatives(medicine_history_array_second, "Альтернативы1.csv")
 
     alternatives = make_html_alternatives(medicine_history_array_first, "ГрафическоеПредставлениеАльтернативЗаболевания0.html")
     make_html_alternative_comparsion(alternatives, "СравнениеАльтернативЗаболевания0.html")

@@ -102,7 +102,7 @@ class Feature:
                     last_appended_value = [-1_000, -1_000]
                 max_range = random.randint(0, self.bound[-1])
                 generated_item = [random.randint(0 if max_range < self.bound[-1] // 2 else self.bound[-1] // 2, max_range), max_range]
-                while len(set(range(generated_item[0], generated_item[1])).intersection(set(range(last_appended_value[0], last_appended_value[1])))) > 0:
+                while len(set(range(generated_item[0], generated_item[1])).intersection(set(range(last_appended_value[0], last_appended_value[1])))) > 0 or generated_item[0] == generated_item[1]:
                     max_range = random.randint(0, self.bound[-1])
                     generated_item = [random.randint(0, max_range), max_range]
                 self.values_for_periods_of_dynamic[index] = generated_item
@@ -1014,7 +1014,7 @@ def make_html_alternative_comparsion(alternatives: [Alternative], filename):
                             is_bad_merge = True
 
                     if len(merged_tables) == 5 and not is_bad_merge:
-                        best_tables.append((f"Заболевание{feature_index}", str(current_alternatives)[1:-1], result_table))
+                        best_tables.append((f"Признак{feature_index}", str(current_alternatives)[1:-1], result_table))
 
                     result_table = pd.DataFrame(
                         data=result_table,
